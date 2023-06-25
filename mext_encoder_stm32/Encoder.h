@@ -92,10 +92,10 @@ namespace mext {
             Qei qei_;
     };
 
-    class Ec {
+    class Ec : public Encoder<int> {
         public:
-            explicit Ec4multi(PinName signalA, PinName signalB, int res);
-                :encoder_(pin1, pin2, 0), resolution_(res * multiplication_)
+            explicit Ec(PinName pin1, PinName pin2, int res)
+                : Encoder<int>(pin1, pin2, 0), resolution_(res * multiplication_)
             {
                 setGearRatio(1); //ギア比1(減速なし)
                 omega_ = 0.0;      
@@ -109,12 +109,12 @@ namespace mext {
             //軸の回転角度を返す関数 [rad] 
             double getRad() const {
                 //カウント数 × 2π / (分解能 * ギア比)
-                return encoder_.ticks() * 2.0f * M_PI / (resolution_ * gear_ratio_);
+                return ticks() * 2.0f * M_PI / (resolution_ * gear_ratio_);
             }
 
             //軸の回転角度を返す関数 [度]
             double getDeg() const {
-                return encoder_.ticks() * 2.0f * 180.0f / (resolution_ * gear_ratio_);
+                return ticks() * 2.0f * 180.0f / (resolution_ * gear_ratio_);
             }
 
             //軸の回転速度・角加速度を計算するための関数 
@@ -131,8 +131,8 @@ namespace mext {
                     pre2_omega_ = pre_omega_;
                     pre_omega_ = omega_;
                     //カウント数 * 2π / (分解能 * ギア比 * 微小時間)
-                    omega_ = encoder_.ticks() * 2.0f * M_PI / (resolution_ * gear_ratio_ * t);
-                    encoder_.reset();
+                    omega_ = counter() * 2.0f * M_PI / (resolution_ * gear_ratio_ * t);
+                    accumulate();
                     ptw_ = t;
                 }
             }
@@ -154,7 +154,6 @@ namespace mext {
  
 
         private:
-            Encoder encoder_;
             Timer timer_;
             static constexpr double M_PI = 3.14159265359f;
             static constexpr int multiplication_ = 4; 
@@ -165,7 +164,7 @@ namespace mext {
             int resolution_;      //分解能 * 逓倍
             double ptw_;          //前回のタイマー時間
             double gear_ratio_;   //ギア比（タイヤ:エンコーダ＝１:rとしたときのrの値）
-    }
+    };
 }
  
 #endif
