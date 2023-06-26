@@ -106,6 +106,11 @@ namespace mext {
                 timer_.start(); //タイマー始める
             }
 
+            //エンコーダのカウント数を返す関数 1周のカウント数=分解能×逓倍
+            int getCount() const {
+                return ticks();
+            }
+
             //軸の回転角度を返す関数 [rad] 
             double getRad() const {
                 //カウント数 × 2π / (分解能 * ギア比)
