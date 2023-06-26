@@ -92,54 +92,49 @@ namespace mext {
             Qei qei_;
     };
 
-    class Ec : public Encoder<int> {
+    class Ec {
         public:
             explicit Ec(PinName pin1, PinName pin2, int res)
-                : Encoder<int>(pin1, pin2, 0), resolution_(res * multiplication_)
+                : encoder_(pin1, pin2, 0), resolution_(res * multiplication_)
             {
                 setGearRatio(1); //ギア比1(減速なし)
-                omega_ = 0.0;      
-                pre_omega_ = 0.0;  
-                pre2_omega_ = 0.0; 
-                acceleration_ = 0.0;
+                count_ = 0, pre_count_ = 0;
+                omega_ = 0.0, pre_omega_ = 0.0, pre2_omega_ = 0.0;
                 ptw_ = 0.0;
+                acceleration_ = 0.0;
                 timer_.start(); //タイマー始める
             }
 
             //エンコーダのカウント数を返す関数 1周のカウント数=分解能×逓倍
             int getCount() const {
-                return ticks();
+                return encoder_.ticks();
             }
 
             //軸の回転角度を返す関数 [rad] 
             double getRad() const {
                 //カウント数 × 2π / (分解能 * ギア比)
-                return ticks() * 2.0f * M_PI / (resolution_ * gear_ratio_);
+                return encoder_.ticks() * 2.0f * M_PI / (resolution_ * gear_ratio_);
             }
 
             //軸の回転角度を返す関数 [度]
             double getDeg() const {
-                return ticks() * 2.0f * 180.0f / (resolution_ * gear_ratio_);
+                return encoder_.ticks() * 2.0f * 180.0f / (resolution_ * gear_ratio_);
             }
 
             //軸の回転速度・角加速度を計算するための関数 
             //微分を微小時間の変位として計算しているためタイマー割り込みなどで回す
             void calOmega() {
-                if(ptw_ == 0.0) {
-                    ptw_ = timer_.read();
-                } else {
-                    double t = timer_.read(); //タイマー読み込み
-                    timer_.stop();
-                    timer_.reset();
-                    timer_.start();
-                    acceleration_ = (pre_omega_ - pre2_omega_) / t; //角速度の微小時間での変位
-                    pre2_omega_ = pre_omega_;
-                    pre_omega_ = omega_;
-                    //カウント数 * 2π / (分解能 * ギア比 * 微小時間)
-                    omega_ = counter() * 2.0f * M_PI / (resolution_ * gear_ratio_ * t);
-                    accumulate();
-                    ptw_ = t;
-                }
+                count_ = encoder_.ticks();
+                double t = timer_.read(); //タイマー読み込み
+                double delta_time = t- ptw_;
+                acceleration_ = (pre_omega_ - pre2_omega_) / delta_time; //角速度の微小時間での変位
+                pre2_omega_ = pre_omega_;
+                pre_omega_ = omega_;
+                //カウント数 * 2π / (分解能 * ギア比 * 微小時間)
+                omega_ = (count_ - pre_count_) * 2.0f * M_PI / (resolution_ * gear_ratio_ * delta_time);
+                encoder_.accumulate();
+                pre_count_ = count_;
+                ptw_ = t;
             }
 
             //軸の回転速度を返す関数 [rad/s]
@@ -156,9 +151,27 @@ namespace mext {
             void setGearRatio(double gear_r) {
                 gear_ratio_ = gear_r;
             }
+
+            //エンコーダの分解能を指定するための関数
+            void setResolution(int res) {
+                resolution_ =  res * multiplication_;
+            }
+
+            //エンコーダを初期状態に戻すための関数
+            void reset() {
+                encoder_.reset();
+                count_ = 0, pre_count_ = 0;
+                omega_ = 0.0, pre_omega_ = 0.0, pre2_omega_ = 0.0;
+                acceleration_ = 0.0;
+                ptw_ = 0.0;
+                timer_.stop();
+                timer_.reset();
+                timer_.start();
+            }
  
 
         private:
+            Encoder<int> encoder_;
             Timer timer_;
             static constexpr double M_PI = 3.14159265359f;
             static constexpr int multiplication_ = 4; 
@@ -166,6 +179,8 @@ namespace mext {
             double pre_omega_;    //前回の角速度(rad/s)
             double pre2_omega_;   //前々回の角速度(rad/s)
             double acceleration_; //角加速度
+            int count_;           //カウント
+            int pre_count_;       //前回のカウント
             int resolution_;      //分解能 * 逓倍
             double ptw_;          //前回のタイマー時間
             double gear_ratio_;   //ギア比（タイヤ:エンコーダ＝１:rとしたときのrの値）
